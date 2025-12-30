@@ -69,15 +69,20 @@ a {
 /* Images */
 img {
     max-width: 100%;
+    min-width: 60%;
     height: auto;
     display: block;
-    margin: 1em auto;
+    margin: 1.5em auto;
 }
 
 figure {
-    margin: 1.5em 0;
+    margin: 2em 0;
     text-align: center;
     page-break-inside: avoid;
+}
+
+figure img {
+    min-width: 70%;
 }
 
 figcaption, .ltx_caption {
@@ -89,21 +94,33 @@ figcaption, .ltx_caption {
 
 /* Tables */
 table {
-    width: 100%;
+    max-width: 100%;
     border-collapse: collapse;
-    margin: 1em 0;
-    font-size: 0.9em;
+    margin: 1.5em 0;
+    font-size: 0.85em;
+    display: block;
+    word-wrap: break-word;
 }
 
 th, td {
     border: 1px solid #ccc;
-    padding: 0.5em;
+    padding: 0.4em 0.6em;
     text-align: left;
+    word-wrap: break-word;
 }
 
 th {
     background: #f5f5f5;
     font-weight: bold;
+}
+
+/* Ensure table rows and cells don't overflow */
+tr {
+    page-break-inside: avoid;
+}
+
+td, th {
+    max-width: 200px;
 }
 
 /* Code and preformatted text */
@@ -219,11 +236,20 @@ math, .ltx_Math, .MathJax {
 
 /* Table wrapper - static layout for e-readers */
 .table-wrapper {
-    margin: 1em 0;
+    margin: 1.5em 0;
+    clear: both;
 }
 
 .ltx_tabular, .ltx_table {
-    margin: 0 auto;
+    margin: 1.5em auto;
+    max-width: 100%;
+    font-size: 0.85em;
+}
+
+/* LaTeXML table figures */
+figure.ltx_figure table,
+.ltx_table table {
+    margin: 0.5em 0;
 }
 
 /* Footnotes */
