@@ -312,6 +312,7 @@ figure.ltx_figure table,
 /* Equation tables - need special handling */
 table.ltx_equation, table.ltx_eqn_table {
     display: table;
+    table-layout: fixed;
     width: 100%;
     margin: 1.5em 0;
     border: none;
@@ -321,7 +322,7 @@ table.ltx_equation, table.ltx_eqn_table {
 table.ltx_equation td,
 table.ltx_eqn_table td {
     border: none;
-    padding: 0.75em 0.5em;
+    padding: 0.5em 0;
     vertical-align: middle;
 }
 
@@ -331,17 +332,34 @@ table.ltx_eqn_table .ltx_eqn_cell {
     background: none;
 }
 
-.ltx_eqn_center_padleft,
+/* Equation layout columns */
+.ltx_eqn_center_padleft {
+    width: 5%;
+}
+
 .ltx_eqn_center_padright {
     width: 5%;
 }
 
-/* Equation numbers */
-.ltx_tag_equation, .ltx_eqn_eqno {
+/* Main equation content - center column */
+td.ltx_align_center {
+    text-align: center;
+    width: 80%;
+}
+
+/* Equation numbers - right column */
+.ltx_eqn_eqno, td.ltx_eqn_eqno {
+    width: 10%;
+    min-width: 3em;
     text-align: right;
     font-size: 0.9em;
-    color: #666;
+    color: #444;
     vertical-align: middle;
+    padding-right: 0.5em;
+}
+
+.ltx_tag_equation {
+    white-space: nowrap;
 }
 
 .math-inline, .ltx_Math {
