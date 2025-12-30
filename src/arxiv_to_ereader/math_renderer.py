@@ -99,16 +99,17 @@ def _simple_latex_fallback(latex: str) -> str:
 
 def render_latex_to_image(
     latex: str,
-    dpi: int = 150,
+    dpi: int = 200,
     is_display: bool = False,
 ) -> MathImage | None:
-    """Render a LaTeX equation to a PNG image.
+    """Render a LaTeX equation to a PNG image with white background.
 
     Uses matplotlib's mathtext engine which doesn't require a LaTeX installation.
+    Renders with a white background for better Kindle compatibility.
 
     Args:
         latex: LaTeX math expression (without $ delimiters)
-        dpi: Resolution for the output image
+        dpi: Resolution for the output image (default 200 for crisp rendering)
         is_display: Whether this is a display/block equation
 
     Returns:
@@ -124,22 +125,53 @@ def render_latex_to_image(
     if not cleaned.startswith("$"):
         cleaned = f"${cleaned}$"
 
-    # Create figure with tight bbox
-    fig = plt.figure(figsize=(0.01, 0.01))
-
     try:
-        # Try rendering with mathtext
-        buf = io.BytesIO()
+        # Create figure and render math
+        fig, ax = plt.subplots(figsize=(0.01, 0.01))
+        fig.patch.set_facecolor("white")
+        ax.set_facecolor("white")
+        ax.axis("off")
+
+        # Render the math text
         try:
-            math_to_image(cleaned, buf, dpi=dpi, format="png")
+            text = ax.text(
+                0.5, 0.5, cleaned,
+                fontsize=12,
+                ha="center", va="center",
+                transform=ax.transAxes,
+            )
         except ValueError:
             # If mathtext fails, try with simplified LaTeX
             simple = _simple_latex_fallback(latex)
             if simple:
-                math_to_image(f"${simple}$", buf, dpi=dpi, format="png")
+                text = ax.text(
+                    0.5, 0.5, f"${simple}$",
+                    fontsize=12,
+                    ha="center", va="center",
+                    transform=ax.transAxes,
+                )
             else:
+                plt.close(fig)
                 return None
 
+        # Render to get bounding box
+        fig.canvas.draw()
+
+        # Get tight bounding box around text
+        bbox = text.get_window_extent(renderer=fig.canvas.get_renderer())
+        bbox = bbox.expanded(1.1, 1.2)  # Add padding
+
+        # Save with tight bbox and white background
+        buf = io.BytesIO()
+        fig.savefig(
+            buf,
+            format="png",
+            dpi=dpi,
+            bbox_inches=bbox.transformed(fig.dpi_scale_trans.inverted()),
+            facecolor="white",
+            edgecolor="none",
+            pad_inches=0.02,
+        )
         buf.seek(0)
         image_data = buf.read()
 
@@ -154,7 +186,7 @@ def render_latex_to_image(
         # If all else fails, return None and we'll keep the original
         return None
     finally:
-        plt.close(fig)
+        plt.close("all")
 
 
 def render_latex_to_svg(
