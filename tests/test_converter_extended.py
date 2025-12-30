@@ -372,9 +372,14 @@ class TestMathConversion:
                     "Inline math missing vertical-align style"
                 )
 
-                # Verify the style has em units
+                # Must have height constraint for inline math
+                assert "height: 1em" in content, (
+                    "Inline math missing height constraint"
+                )
+
+                # Verify the style has vertical-align with em units
                 import re
-                match = re.search(r'style="vertical-align:\s*(-?[\d.]+)em;?"', content)
+                match = re.search(r'vertical-align:\s*(-?[\d.]+)em', content)
                 assert match is not None, (
                     f"vertical-align style not found or malformed in: {content}"
                 )

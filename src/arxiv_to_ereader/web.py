@@ -6,7 +6,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from arxiv_to_ereader.converter import OutputFormat, convert_to_epub
+from arxiv_to_ereader.converter import OutputFormat, convert_to_epub, validate_epub
 from arxiv_to_ereader.fetcher import (
     ArxivFetchError,
     ArxivHTMLNotAvailable,
@@ -144,6 +144,13 @@ if st.button(button_label, type="primary", disabled=convert_disabled):
                 output_format=selected_format,
             )
 
+            # Validate EPUB if applicable
+            validation_errors = []
+            if selected_format == OutputFormat.EPUB:
+                is_valid, validation_errors = validate_epub(ebook_path)
+            else:
+                is_valid = True
+
             results.append(
                 {
                     "success": True,
@@ -151,6 +158,8 @@ if st.button(button_label, type="primary", disabled=convert_disabled):
                     "title": paper.title,
                     "authors": paper.authors,
                     "path": ebook_path,
+                    "validation_passed": is_valid,
+                    "validation_errors": validation_errors,
                 }
             )
 
@@ -181,6 +190,18 @@ if st.button(button_label, type="primary", disabled=convert_disabled):
     for result in results:
         if result["success"]:
             st.success(f"✅ {result['paper_id']}: {result['title']}")
+
+            # Show validation warning if applicable
+            if not result.get("validation_passed", True):
+                st.warning(
+                    "⚠️ **EPUB Validation Failed** - This file may be rejected by Send to Kindle. "
+                    f"({len(result.get('validation_errors', []))} errors detected)"
+                )
+                with st.expander("Show validation errors"):
+                    for error in result.get("validation_errors", [])[:10]:
+                        st.code(error)
+                    if len(result.get("validation_errors", [])) > 10:
+                        st.write(f"... and {len(result['validation_errors']) - 10} more errors")
 
             # Read file and provide download
             with open(result["path"], "rb") as f:

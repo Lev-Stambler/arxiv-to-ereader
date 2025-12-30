@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from arxiv_to_ereader import __version__
-from arxiv_to_ereader.converter import OutputFormat, convert_to_epub
+from arxiv_to_ereader.converter import OutputFormat, convert_to_epub, validate_epub
 from arxiv_to_ereader.fetcher import (
     ArxivFetchError,
     ArxivHTMLNotAvailable,
@@ -244,6 +244,18 @@ def _convert_single(
     console.print(f"  Title: {paper.title}")
     console.print(f"  Authors: {', '.join(paper.authors)}")
 
+    # Validate EPUB if it's an epub format
+    if output_format == OutputFormat.EPUB:
+        is_valid, errors = validate_epub(ebook_path)
+        if not is_valid:
+            console.print()
+            console.print("[bold yellow]WARNING: EPUB validation failed![/bold yellow]")
+            console.print("[yellow]This EPUB may be rejected by Send to Kindle.[/yellow]")
+            for error in errors[:5]:  # Show first 5 errors
+                console.print(f"[dim]  {error}[/dim]")
+            if len(errors) > 5:
+                console.print(f"[dim]  ... and {len(errors) - 5} more errors[/dim]")
+
 
 def _convert_batch(
     paper_inputs: list[str],
@@ -309,6 +321,13 @@ def _convert_batch(
             )
 
             console.print(f"[green]Created:[/green] {ebook_path}")
+
+            # Validate EPUB if it's an epub format
+            if output_format == OutputFormat.EPUB:
+                is_valid, errors = validate_epub(ebook_path)
+                if not is_valid:
+                    console.print(f"  [yellow]WARNING: Validation failed ({len(errors)} errors)[/yellow]")
+
             success_count += 1
 
         except Exception as e:

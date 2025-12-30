@@ -382,7 +382,9 @@ math[display="block"] {
 
 .math-image.math-inline {
     display: inline;
+    height: 1em;
     max-height: 1.2em;
+    width: auto;
     vertical-align: -0.2em;  /* Default fallback for inline math baseline alignment */
 }
 

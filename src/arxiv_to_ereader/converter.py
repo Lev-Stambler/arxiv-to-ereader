@@ -30,6 +30,66 @@ def _check_calibre_available() -> bool:
     return shutil.which("ebook-convert") is not None
 
 
+def validate_epub(epub_path: Path) -> tuple[bool, list[str]]:
+    """Validate an EPUB file using EPUBCheck if available.
+
+    Args:
+        epub_path: Path to the EPUB file to validate
+
+    Returns:
+        Tuple of (is_valid, error_messages).
+        If EPUBCheck is not available, returns (True, []) to avoid blocking.
+    """
+    # Try to find epubcheck - check common locations
+    epubcheck_jar = None
+
+    # Check environment variable first
+    import os
+
+    env_jar = os.environ.get("EPUBCHECK_JAR")
+    if env_jar and Path(env_jar).exists():
+        epubcheck_jar = Path(env_jar)
+
+    # Check common installation paths
+    if not epubcheck_jar:
+        common_paths = [
+            Path("/tmp/epubcheck-5.1.0/epubcheck.jar"),
+            Path.home() / ".local" / "share" / "epubcheck" / "epubcheck.jar",
+            Path("/usr/share/java/epubcheck.jar"),
+        ]
+        for path in common_paths:
+            if path.exists():
+                epubcheck_jar = path
+                break
+
+    # Check if java is available
+    if shutil.which("java") is None:
+        return True, []  # Can't validate without Java
+
+    if epubcheck_jar is None:
+        return True, []  # Can't validate without EPUBCheck
+
+    try:
+        result = subprocess.run(
+            ["java", "-jar", str(epubcheck_jar), str(epub_path)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        output = result.stdout + result.stderr
+
+        # Parse errors from output
+        errors = []
+        for line in output.split("\n"):
+            if line.startswith("ERROR") or line.startswith("FATAL"):
+                errors.append(line.strip())
+
+        return result.returncode == 0, errors
+
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return True, []  # Validation unavailable
+
+
 def _scrub_epub_for_kindle(epub_path: Path) -> None:
     """Scrub EPUB for Kindle compatibility without requiring Calibre.
 
@@ -42,6 +102,9 @@ def _scrub_epub_for_kindle(epub_path: Path) -> None:
     4. Remove <img> tags without src attributes
     5. Strip MathML elements (Kindle doesn't support them; keeps alttext as fallback)
     6. Remove empty <ol/> tags (invalid in EPUB nav)
+    7. Strip SVG elements (Kindle requires proper namespace declarations)
+    8. Remove broken internal fragment links (citations pointing to non-existent IDs)
+    9. Fix block elements inside inline elements (div inside span)
 
     Args:
         epub_path: Path to the EPUB file to scrub (modified in place)
@@ -122,6 +185,44 @@ def _scrub_epub_for_kindle(epub_path: Path) -> None:
                         if not ol.find("li"):
                             ol.decompose()
                             soup_modified = True
+
+                    # Fix 7: Strip SVG elements (Kindle requires proper namespace)
+                    # SVG diagrams from LaTeXML don't have proper EPUB namespace declarations
+                    for svg in soup.find_all("svg"):
+                        # Try to keep alt text if available from parent figure
+                        parent_figure = svg.find_parent("figure")
+                        if parent_figure:
+                            figcaption = parent_figure.find("figcaption")
+                            if figcaption:
+                                # Keep figure with caption, just remove SVG
+                                svg.decompose()
+                                soup_modified = True
+                                continue
+                        svg.decompose()
+                        soup_modified = True
+
+                    # Fix 8: Remove broken internal fragment links
+                    # Citations often link to #bib.bibXXX which may not exist
+                    for a in soup.find_all("a", href=True):
+                        href = a.get("href", "")
+                        if href.startswith("#"):
+                            # Check if target exists in this document
+                            target_id = href[1:]
+                            if not soup.find(id=target_id) and not soup.find(attrs={"name": target_id}):
+                                # Remove href but keep the link text
+                                del a["href"]
+                                soup_modified = True
+
+                    # Fix 9: Fix block elements inside inline elements
+                    # Convert span containing div/table/figure to div
+                    inline_tags = {"span", "a", "em", "strong", "b", "i", "u", "sub", "sup", "code"}
+                    block_tags = {"div", "table", "figure", "p", "ul", "ol", "blockquote", "pre"}
+                    for tag_name in inline_tags:
+                        for elem in soup.find_all(tag_name):
+                            if elem.find(block_tags):
+                                # Convert inline to div while preserving attributes
+                                elem.name = "div"
+                                soup_modified = True
 
                     if soup_modified:
                         # Only re-serialize if we actually modified something
@@ -431,9 +532,12 @@ def _convert_math_to_images(
                 wrapper.append(img_tag)
                 math_elem.replace_with(wrapper)
             else:
-                # For inline math, add vertical-align style for baseline alignment
+                # For inline math, add styles for baseline alignment and size constraint
+                # Height constraint ensures inline math doesn't become huge
+                style_parts = ["height: 1em", "max-height: 1.2em"]
                 if math_img.depth_em != 0:
-                    img_tag["style"] = f"vertical-align: {math_img.depth_em:.2f}em;"
+                    style_parts.append(f"vertical-align: {math_img.depth_em:.2f}em")
+                img_tag["style"] = "; ".join(style_parts) + ";"
                 math_elem.replace_with(img_tag)
 
     # Return the modified HTML
