@@ -166,7 +166,7 @@ st.markdown(
     """
     <div style="text-align: center; color: #666; font-size: 0.9em;">
         <p>
-            <a href="https://github.com/lev/arxiv-epub" target="_blank">GitHub</a> •
+            <a href="https://github.com/Lev-Stambler/arxiv-epub" target="_blank">GitHub</a> •
             <a href="https://arxiv.org" target="_blank">arXiv</a>
         </p>
         <p>Made with ❤️ for researchers</p>

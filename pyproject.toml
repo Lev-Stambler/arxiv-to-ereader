@@ -43,9 +43,9 @@ web = [
 arxiv-epub = "arxiv_epub.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/lev/arxiv-epub"
-Repository = "https://github.com/lev/arxiv-epub"
-Issues = "https://github.com/lev/arxiv-epub/issues"
+Homepage = "https://github.com/Lev-Stambler/arxiv-epub"
+Repository = "https://github.com/Lev-Stambler/arxiv-epub"
+Issues = "https://github.com/Lev-Stambler/arxiv-epub/issues"
 
 [build-system]
 requires = ["hatchling"]

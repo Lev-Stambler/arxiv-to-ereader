@@ -22,7 +22,7 @@ uv pip install arxiv-epub
 ### From source
 
 ```bash
-git clone https://github.com/lev/arxiv-epub.git
+git clone https://github.com/Lev-Stambler/arxiv-epub.git
 cd arxiv-epub
 uv sync
 ```
@@ -96,7 +96,7 @@ print(f"Authors: {', '.join(paper.authors)}")
 
 ```bash
 # Clone the repo
-git clone https://github.com/lev/arxiv-epub.git
+git clone https://github.com/Lev-Stambler/arxiv-epub.git
 cd arxiv-epub
 
 # Install with dev dependencies
