@@ -1,14 +1,19 @@
 """Extended converter tests."""
 
 import tempfile
+import zipfile
 from pathlib import Path
 
 import pytest
 import respx
 from httpx import Response
 
-from arxiv_to_ereader.converter import _download_image, convert_to_epub
-from arxiv_to_ereader.parser import Figure, Paper, Section
+from arxiv_to_ereader.converter import (
+    _convert_math_to_images,
+    _download_image,
+    convert_to_epub,
+)
+from arxiv_to_ereader.parser import Figure, Footnote, Paper, Section
 
 
 class TestImageDownload:
@@ -249,3 +254,175 @@ class TestConverterEdgeCases:
                 assert "hep-th_9901001" in result.name
             finally:
                 os.chdir(original_cwd)
+
+
+class TestMathConversion:
+    """Tests for math-to-image conversion in converter."""
+
+    def test_convert_math_to_images_inline(self) -> None:
+        """Test converting inline math to images."""
+        html = '<p>The formula <math alttext="x + y" display="inline"><mi>x</mi></math> is simple.</p>'
+        math_images: dict = {}
+
+        result, math_images = _convert_math_to_images(html, math_images)
+
+        assert len(math_images) == 1
+        assert "x + y" in math_images
+        assert '<img' in result
+        assert 'class="math-image math-inline"' in result
+
+    def test_convert_math_to_images_display(self) -> None:
+        """Test converting display math to images."""
+        html = '<div><math alttext="E = mc^2" display="block"><mi>E</mi></math></div>'
+        math_images: dict = {}
+
+        result, math_images = _convert_math_to_images(html, math_images)
+
+        assert len(math_images) == 1
+        assert '<div class="math-block-img">' in result
+        assert 'class="math-image math-display"' in result
+
+    def test_convert_math_deduplicates(self) -> None:
+        """Test that same math expressions share the same image."""
+        html = '''
+        <p><math alttext="x"><mi>x</mi></math> and <math alttext="x"><mi>x</mi></math></p>
+        '''
+        math_images: dict = {}
+
+        result, math_images = _convert_math_to_images(html, math_images)
+
+        # Should only have one image despite two math elements
+        assert len(math_images) == 1
+        # But result should have two img tags
+        assert result.count('<img') == 2
+
+    def test_convert_math_extracts_from_annotation(self) -> None:
+        """Test extracting LaTeX from annotation element."""
+        html = '''
+        <math display="inline">
+            <semantics>
+                <mi>y</mi>
+                <annotation encoding="application/x-tex">y^2</annotation>
+            </semantics>
+        </math>
+        '''
+        math_images: dict = {}
+
+        result, math_images = _convert_math_to_images(html, math_images)
+
+        assert len(math_images) == 1
+        assert "y^2" in math_images
+
+    def test_convert_math_preserves_non_math_content(self) -> None:
+        """Test that non-math content is preserved."""
+        html = '<p>Regular text here.</p><p>More text.</p>'
+        math_images: dict = {}
+
+        result, math_images = _convert_math_to_images(html, math_images)
+
+        assert len(math_images) == 0
+        assert 'Regular text here.' in result
+        assert 'More text.' in result
+
+    def test_epub_with_math_rendering_enabled(self) -> None:
+        """Test full EPUB conversion with math rendering."""
+        paper = Paper(
+            id="test.00001",
+            title="Math Paper",
+            authors=["Author"],
+            abstract="A paper about math",
+            sections=[
+                Section(
+                    id="S1",
+                    title="Introduction",
+                    level=1,
+                    content='<p>Consider <math alttext="\\alpha + \\beta" display="inline"><mi>α</mi></math>.</p>',
+                )
+            ],
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "math_test.epub"
+            result = convert_to_epub(
+                paper,
+                output_path,
+                download_images=False,
+                render_math=True,
+                math_dpi=100,
+            )
+
+            assert result.exists()
+
+            # Check that math images are in the EPUB
+            with zipfile.ZipFile(result, "r") as zf:
+                math_files = [n for n in zf.namelist() if "math/" in n]
+                assert len(math_files) >= 1
+
+    def test_epub_with_math_rendering_disabled(self) -> None:
+        """Test EPUB conversion with math rendering disabled."""
+        paper = Paper(
+            id="test.00001",
+            title="Math Paper",
+            authors=["Author"],
+            abstract="A paper about math",
+            sections=[
+                Section(
+                    id="S1",
+                    title="Introduction",
+                    level=1,
+                    content='<p>Consider <math alttext="x"><mi>x</mi></math>.</p>',
+                )
+            ],
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "no_math_test.epub"
+            result = convert_to_epub(
+                paper,
+                output_path,
+                download_images=False,
+                render_math=False,
+            )
+
+            assert result.exists()
+
+            # Math images should NOT be in the EPUB
+            with zipfile.ZipFile(result, "r") as zf:
+                math_files = [n for n in zf.namelist() if "math/" in n]
+                assert len(math_files) == 0
+
+
+class TestFootnotesConversion:
+    """Tests for footnotes in converter."""
+
+    def test_epub_with_footnotes(self) -> None:
+        """Test EPUB generation with footnotes."""
+        paper = Paper(
+            id="test.00001",
+            title="Paper with Footnotes",
+            authors=["Author"],
+            abstract="Abstract",
+            sections=[
+                Section(
+                    id="S1",
+                    title="Content",
+                    level=1,
+                    content='<p>Text with note.<a href="#fn-1" id="fnref-1" class="footnote-ref"><sup>1</sup></a></p>',
+                )
+            ],
+            footnotes=[
+                Footnote(id="fn-1", index=1, content="This is a footnote.")
+            ],
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "footnotes_test.epub"
+            result = convert_to_epub(paper, output_path, download_images=False)
+
+            assert result.exists()
+
+            # Check footnotes chapter exists
+            with zipfile.ZipFile(result, "r") as zf:
+                assert "EPUB/footnotes.xhtml" in zf.namelist()
+                footnotes_content = zf.read("EPUB/footnotes.xhtml").decode("utf-8")
+                assert "This is a footnote." in footnotes_content

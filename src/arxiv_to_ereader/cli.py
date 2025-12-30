@@ -73,6 +73,20 @@ def convert(
             help="Skip downloading images (faster, smaller files)",
         ),
     ] = False,
+    no_math_images: Annotated[
+        bool,
+        typer.Option(
+            "--no-math-images",
+            help="Don't render math equations as images (keep MathML, may not display on Kindle)",
+        ),
+    ] = False,
+    math_dpi: Annotated[
+        int,
+        typer.Option(
+            "--math-dpi",
+            help="DPI resolution for rendered math images (default 150)",
+        ),
+    ] = 150,
     version: Annotated[
         bool | None,
         typer.Option(
@@ -113,9 +127,9 @@ def convert(
 
     # Process single paper or batch
     if len(papers) == 1:
-        _convert_single(papers[0], output, style, not no_images, output_format)
+        _convert_single(papers[0], output, style, not no_images, output_format, not no_math_images, math_dpi)
     else:
-        _convert_batch(papers, output, style, not no_images, output_format)
+        _convert_batch(papers, output, style, not no_images, output_format, not no_math_images, math_dpi)
 
 
 def _convert_single(
@@ -124,6 +138,8 @@ def _convert_single(
     style: str,
     download_images: bool,
     output_format: OutputFormat,
+    render_math: bool,
+    math_dpi: int,
 ) -> None:
     """Convert a single paper."""
     with Progress(
@@ -173,6 +189,8 @@ def _convert_single(
             style_preset=style,
             download_images=download_images,
             output_format=output_format,
+            render_math=render_math,
+            math_dpi=math_dpi,
         )
 
         progress.stop()
@@ -188,6 +206,8 @@ def _convert_batch(
     style: str,
     download_images: bool,
     output_format: OutputFormat,
+    render_math: bool,
+    math_dpi: int,
 ) -> None:
     """Convert multiple papers."""
     format_name = output_format.value.upper()
@@ -233,6 +253,8 @@ def _convert_batch(
                 style_preset=style,
                 download_images=download_images,
                 output_format=output_format,
+                render_math=render_math,
+                math_dpi=math_dpi,
             )
 
             console.print(f"[green]Created:[/green] {ebook_path}")

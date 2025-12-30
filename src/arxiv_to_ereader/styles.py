@@ -374,6 +374,31 @@ math[display="block"] {
     text-align: center;
 }
 
+/* Math images (rendered from LaTeX) */
+.math-image {
+    vertical-align: middle;
+    height: auto;
+}
+
+.math-image.math-inline {
+    display: inline;
+    max-height: 1.5em;
+    vertical-align: text-bottom;
+}
+
+.math-image.math-display {
+    display: block;
+    max-width: 100%;
+    margin: 0 auto;
+}
+
+.math-block-img {
+    display: block;
+    text-align: center;
+    margin: 1.5em 0;
+    padding: 0.5em 0;
+}
+
 /* Citations */
 .citation, .ltx_cite {
     font-style: normal;

@@ -1,5 +1,6 @@
 """Convert parsed papers to EPUB and Kindle formats."""
 
+import re
 import shutil
 import subprocess
 import tempfile
@@ -7,8 +8,10 @@ from enum import Enum
 from pathlib import Path
 
 import httpx
+from bs4 import BeautifulSoup
 from ebooklib import epub
 
+from arxiv_to_ereader.math_renderer import MathImage, render_latex_to_image
 from arxiv_to_ereader.parser import Paper
 from arxiv_to_ereader.styles import get_cover_css, get_stylesheet
 
@@ -203,6 +206,81 @@ def _create_footnotes_chapter(
     return chapter
 
 
+def _convert_math_to_images(
+    html_content: str,
+    math_images: dict[str, MathImage],
+    dpi: int = 150,
+) -> tuple[str, dict[str, MathImage]]:
+    """Convert all math elements in HTML content to images.
+
+    Finds MathML elements, extracts their LaTeX, renders to images,
+    and replaces them with <img> tags.
+
+    Args:
+        html_content: HTML content with math elements
+        math_images: Dictionary to accumulate rendered math images (modified in place)
+        dpi: Resolution for rendered math images
+
+    Returns:
+        Tuple of (modified_html, math_images)
+    """
+    soup = BeautifulSoup(html_content, "lxml")
+
+    # Find all <math> elements
+    math_elements = soup.find_all("math")
+
+    for math_elem in math_elements:
+        # Get display type (block vs inline)
+        display = math_elem.get("display", "inline")
+        is_display = display == "block"
+
+        # Extract LaTeX from alttext or annotation
+        latex = None
+        alttext = math_elem.get("alttext")
+        if alttext:
+            latex = alttext
+        else:
+            # Try annotation element
+            annotation = math_elem.select_one('annotation[encoding="application/x-tex"]')
+            if annotation:
+                latex = annotation.get_text()
+
+        if not latex:
+            continue
+
+        # Check if we already rendered this equation
+        if latex in math_images:
+            math_img = math_images[latex]
+        else:
+            # Render to image
+            math_img = render_latex_to_image(latex, dpi=dpi, is_display=is_display)
+            if math_img:
+                math_images[latex] = math_img
+
+        if math_img:
+            # Create img tag to replace math
+            img_tag = soup.new_tag("img")
+            img_tag["src"] = f"math/{math_img.filename}"
+            img_tag["alt"] = latex[:200] if len(latex) > 200 else latex
+            img_tag["class"] = "math-image math-display" if is_display else "math-image math-inline"
+
+            # For display equations, wrap in a div for proper centering
+            if is_display:
+                wrapper = soup.new_tag("div")
+                wrapper["class"] = "math-block-img"
+                wrapper.append(img_tag)
+                math_elem.replace_with(wrapper)
+            else:
+                math_elem.replace_with(img_tag)
+
+    # Return the modified HTML
+    # Extract just the body content if wrapped by lxml
+    body = soup.find("body")
+    if body:
+        return "".join(str(child) for child in body.children), math_images
+    return str(soup), math_images
+
+
 def _download_image(url: str, timeout: float = 30.0) -> tuple[bytes, str] | None:
     """Download an image and return its content and media type.
 
@@ -229,6 +307,8 @@ def convert_to_epub(
     style_preset: str = "default",
     download_images: bool = True,
     output_format: OutputFormat | str = OutputFormat.EPUB,
+    render_math: bool = True,
+    math_dpi: int = 150,
 ) -> Path:
     """Convert a parsed paper to EPUB or Kindle format.
 
@@ -238,6 +318,8 @@ def convert_to_epub(
         style_preset: Style preset name ("default", "compact", "large-text")
         download_images: Whether to download and embed images
         output_format: Output format ("epub", "mobi", or "azw3")
+        render_math: Whether to convert math equations to images (recommended for Kindle)
+        math_dpi: DPI resolution for rendered math images
 
     Returns:
         Path to the created ebook file
@@ -316,6 +398,9 @@ def convert_to_epub(
                 image_url_to_epub_path[original_src] = img_filename
                 image_url_to_epub_path[absolute_url] = img_filename
 
+    # Track rendered math images across all sections
+    math_images: dict[str, MathImage] = {}
+
     # Sections
     for i, section in enumerate(paper.sections):
         # Update image URLs in section content
@@ -325,6 +410,10 @@ def convert_to_epub(
             content = content.replace(f'src="{old_url}"', f'src="{new_path}"')
             content = content.replace(f"src='{old_url}'", f"src='{new_path}'")
 
+        # Convert math to images if enabled
+        if render_math:
+            content, math_images = _convert_math_to_images(content, math_images, dpi=math_dpi)
+
         section_chapter = _create_section_chapter(
             i,
             section.title,
@@ -333,6 +422,17 @@ def convert_to_epub(
         )
         book.add_item(section_chapter)
         chapters.append(section_chapter)
+
+    # Add all rendered math images to the EPUB
+    if render_math and math_images:
+        for math_img in math_images.values():
+            img_item = epub.EpubItem(
+                uid=f"math_{math_img.filename.replace('.', '_')}",
+                file_name=f"math/{math_img.filename}",
+                media_type=math_img.image_type,
+                content=math_img.image_data,
+            )
+            book.add_item(img_item)
 
     # References
     if paper.references_html:
