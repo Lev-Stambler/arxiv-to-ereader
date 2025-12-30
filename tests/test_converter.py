@@ -186,3 +186,62 @@ class TestEpubContent:
 
                 abstract_content = zf.read(abstract_files[0]).decode("utf-8")
                 assert sample_paper.abstract in abstract_content
+
+
+class TestEpubKindleCompatibility:
+    """Tests for Kindle-compatible EPUB scrubbing."""
+
+    def test_xhtml_files_have_utf8_declaration(self, sample_paper: Paper) -> None:
+        """Test that all XHTML files have proper UTF-8 encoding declaration."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "test.epub"
+            result = convert_to_epub(sample_paper, output_path, download_images=False)
+
+            with zipfile.ZipFile(result, "r") as zf:
+                for name in zf.namelist():
+                    if name.endswith(".xhtml"):
+                        content = zf.read(name).decode("utf-8")
+                        # Must have XML declaration with UTF-8 encoding
+                        assert '<?xml version="1.0" encoding="utf-8"?>' in content, (
+                            f"{name} missing UTF-8 encoding declaration"
+                        )
+
+    def test_opf_file_has_utf8_declaration(self, sample_paper: Paper) -> None:
+        """Test that the OPF manifest has proper UTF-8 encoding declaration."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "test.epub"
+            result = convert_to_epub(sample_paper, output_path, download_images=False)
+
+            with zipfile.ZipFile(result, "r") as zf:
+                for name in zf.namelist():
+                    if name.endswith(".opf"):
+                        content = zf.read(name).decode("utf-8")
+                        assert '<?xml version="1.0" encoding="utf-8"?>' in content, (
+                            "OPF file missing UTF-8 encoding declaration"
+                        )
+
+    def test_ncx_file_has_utf8_declaration(self, sample_paper: Paper) -> None:
+        """Test that the NCX navigation has proper UTF-8 encoding declaration."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "test.epub"
+            result = convert_to_epub(sample_paper, output_path, download_images=False)
+
+            with zipfile.ZipFile(result, "r") as zf:
+                for name in zf.namelist():
+                    if name.endswith(".ncx"):
+                        content = zf.read(name).decode("utf-8")
+                        assert '<?xml version="1.0" encoding="utf-8"?>' in content, (
+                            "NCX file missing UTF-8 encoding declaration"
+                        )
+
+    def test_mimetype_stored_uncompressed(self, sample_paper: Paper) -> None:
+        """Test that mimetype is stored uncompressed (EPUB spec requirement)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "test.epub"
+            result = convert_to_epub(sample_paper, output_path, download_images=False)
+
+            with zipfile.ZipFile(result, "r") as zf:
+                info = zf.getinfo("mimetype")
+                assert info.compress_type == zipfile.ZIP_STORED, (
+                    "mimetype must be stored uncompressed"
+                )

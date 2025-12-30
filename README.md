@@ -113,6 +113,8 @@ uv run arxiv-to-ereader 2402.08954 --use-id
 
 ### Web Interface
 
+![Web Interface](demo-web.gif)
+
 Run the web interface locally:
 
 ```bash
@@ -218,15 +220,20 @@ MIT License - see [LICENSE](LICENSE) for details.
 - [Calibre](https://calibre-ebook.com) for Kindle format conversion
 - [LaTeXML](https://dlmf.nist.gov/LaTeXML/) which powers arXiv's HTML conversion
 
-## Recording the Demo
+## Recording the Demos
 
-The demo GIF is recorded using [VHS](https://github.com/charmbracelet/vhs):
+The CLI demo is recorded using [VHS](https://github.com/charmbracelet/vhs):
 
 ```bash
 # Install VHS (https://github.com/charmbracelet/vhs#installation)
-# Then record the demo:
-vhs demo-quick.tape    # Quick demo (no network)
-vhs demo.tape          # Full demo (requires network)
+vhs demo-quick.tape    # Quick CLI demo (no network)
+vhs demo.tape          # Full CLI demo (requires network)
+```
+
+The web demo is recorded using Playwright:
+
+```bash
+uv run python scripts/record_web_demo.py
 ```
 
 ## Disclaimer
