@@ -87,6 +87,23 @@ def _process_content(soup_fragment: Tag, footnote_counter: list[int]) -> tuple[s
                 tag[k] = v
         return tag
 
+    # 0. Clean up image alt text - remove useless "Refer to caption" placeholder
+    for img in soup_fragment.find_all("img"):
+        alt = img.get("alt", "")
+        if alt.lower() in ["refer to caption", "refer to caption."]:
+            # Try to find a better alt text from nearby caption
+            figure = img.find_parent("figure")
+            if figure:
+                caption = figure.select_one(".ltx_caption, figcaption")
+                if caption:
+                    # Use first part of caption as alt text
+                    caption_text = _clean_text(caption.get_text())
+                    img["alt"] = caption_text[:100] if len(caption_text) > 100 else caption_text
+                else:
+                    img["alt"] = "Figure"
+            else:
+                img["alt"] = "Image"
+
     # 1. Handle Tables: Wrap in div for horizontal scrolling on e-readers
     for table in soup_fragment.select(".ltx_tabular, .ltx_table, table"):
         if table.parent and "table-wrapper" not in table.parent.get("class", []):
