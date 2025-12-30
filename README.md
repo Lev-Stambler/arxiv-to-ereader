@@ -208,6 +208,26 @@ The generated ebook includes:
 
 Output files are named after the paper title by default (use `--use-id` for arXiv ID-based filenames).
 
+## Known Limitations
+
+Conversion doesn't always succeed perfectly. Some papers may have:
+- Complex LaTeX that matplotlib's mathtext engine can't render
+- Unusual HTML structures that don't parse correctly
+- Missing or malformed metadata
+
+**Validate your EPUB** using [epubcheck](https://www.w3.org/publishing/epubcheck/):
+
+```bash
+# Install epubcheck (requires Java)
+# macOS: brew install epubcheck
+# Or download from: https://www.w3.org/publishing/epubcheck/
+
+# Validate an EPUB file
+epubcheck your_paper.epub
+```
+
+If you encounter issues with a specific paper, please [open an issue](https://github.com/Lev-Stambler/arxiv-to-ereader/issues) with the arXiv ID.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
