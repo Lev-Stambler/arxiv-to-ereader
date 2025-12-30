@@ -33,22 +33,22 @@ uv sync
 
 ```bash
 # Convert a single paper
-arxiv-epub 2402.08954
+uv run arxiv-epub 2402.08954
 
 # Convert from URL
-arxiv-epub https://arxiv.org/abs/2402.08954
+uv run arxiv-epub https://arxiv.org/abs/2402.08954
 
 # Convert multiple papers
-arxiv-epub 2402.08954 2401.12345 2312.00001
+uv run arxiv-epub 2402.08954 2401.12345 2312.00001
 
 # Specify output directory
-arxiv-epub 2402.08954 -o ~/kindle-papers/
+uv run arxiv-epub 2402.08954 -o ~/kindle-papers/
 
 # Use a different style preset
-arxiv-epub 2402.08954 --style large-text
+uv run arxiv-epub 2402.08954 --style large-text
 
 # Skip images for faster/smaller files
-arxiv-epub 2402.08954 --no-images
+uv run arxiv-epub 2402.08954 --no-images
 ```
 
 ### Style Presets
@@ -62,8 +62,8 @@ arxiv-epub 2402.08954 --no-images
 Run the web interface locally:
 
 ```bash
-uv pip install arxiv-epub[web]
-streamlit run src/arxiv_epub/web.py
+uv sync --extra web
+uv run streamlit run src/arxiv_epub/web.py
 ```
 
 ## Python API
