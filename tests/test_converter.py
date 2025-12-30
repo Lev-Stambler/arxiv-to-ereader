@@ -261,3 +261,236 @@ class TestEpubKindleCompatibility:
                 assert "mimetype" in names
                 assert any(".opf" in n for n in names)
                 assert any(".xhtml" in n for n in names)
+
+    def test_unique_creator_ids(self, sample_paper: Paper) -> None:
+        """Test that multiple authors have unique creator IDs."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "test.epub"
+            result = convert_to_epub(sample_paper, output_path, download_images=False)
+
+            with zipfile.ZipFile(result, "r") as zf:
+                for name in zf.namelist():
+                    if name.endswith(".opf"):
+                        content = zf.read(name).decode("utf-8")
+                        # Should have creator_0 and creator_1 for two authors
+                        assert 'id="creator_0"' in content
+                        assert 'id="creator_1"' in content
+                        # Should NOT have duplicate "creator" IDs
+                        assert content.count('id="creator"') == 0
+
+    def test_no_mathml_in_output(self) -> None:
+        """Test that MathML is stripped from EPUB for Kindle compatibility."""
+        # Create a paper with MathML content
+        paper_with_math = Paper(
+            id="test.math",
+            title="Math Test",
+            authors=["Test Author"],
+            abstract="Abstract with no math",
+            date="2024-01-01",
+            sections=[
+                Section(
+                    id="S1",
+                    title="Math Section",
+                    level=1,
+                    content='<p>Here is math: <math alttext="x^2"><mi>x</mi><msup><mn>2</mn></msup></math> in text.</p>',
+                )
+            ],
+            figures=[],
+            footnotes=[],
+            references_html=None,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "test.epub"
+            # Disable math rendering to test MathML stripping
+            result = convert_to_epub(
+                paper_with_math, output_path, download_images=False, render_math=False
+            )
+
+            with zipfile.ZipFile(result, "r") as zf:
+                for name in zf.namelist():
+                    if name.endswith(".xhtml") and "section" in name:
+                        content = zf.read(name).decode("utf-8")
+                        # MathML should be stripped
+                        assert "<math" not in content, f"MathML found in {name}"
+                        # Alttext should be preserved as fallback
+                        assert "x^2" in content, f"Alttext not preserved in {name}"
+
+
+class TestEpubCheckValidation:
+    """Tests using EPUBCheck for validation (requires Java)."""
+
+    @pytest.fixture
+    def epubcheck_jar(self) -> Path | None:
+        """Get path to epubcheck JAR, or None if not available."""
+        import os
+        import shutil
+
+        # Check environment variable first
+        jar_path = os.environ.get("EPUBCHECK_JAR")
+        if jar_path and Path(jar_path).exists():
+            return Path(jar_path)
+
+        # Check common locations
+        common_paths = [
+            Path("/tmp/epubcheck-5.1.0/epubcheck.jar"),
+            Path.home() / ".local/share/epubcheck/epubcheck.jar",
+        ]
+        for path in common_paths:
+            if path.exists():
+                return path
+
+        # Check if java is available
+        if not shutil.which("java"):
+            return None
+
+        return None
+
+    def _run_epubcheck(self, epubcheck_jar: Path, epub_path: Path) -> list[str]:
+        """Run epubcheck and return list of structural errors (not content warnings)."""
+        import subprocess
+
+        proc = subprocess.run(
+            ["java", "-jar", str(epubcheck_jar), str(epub_path)],
+            capture_output=True,
+            text=True,
+        )
+
+        if proc.returncode == 0:
+            return []
+
+        # Filter for structural errors that would cause Kindle rejection
+        # Ignore content-level issues like broken cross-references (RSC-012)
+        # and missing referenced resources (RSC-007) which are ArXiv HTML issues
+        structural_error_codes = [
+            "RSC-005",  # Parsing errors (invalid XML/HTML structure)
+            "PKG-",     # Package errors
+            "OPF-",     # OPF manifest errors
+            "NCX-",     # NCX navigation errors
+        ]
+
+        errors = []
+        for line in (proc.stdout + proc.stderr).split("\n"):
+            if "ERROR" in line:
+                # Check if it's a structural error we care about
+                # But exclude specific content-level RSC-005 errors
+                if any(code in line for code in structural_error_codes):
+                    # Skip RSC-005 errors about div/span placement (ArXiv HTML issue)
+                    if 'RSC-005' in line and ('element "div"' in line or 'element "span"' in line):
+                        continue
+                    # Skip RSC-005 errors about math namespace (should be stripped)
+                    if 'RSC-005' in line and 'element "math"' in line:
+                        errors.append(line)  # This IS a problem - math should be stripped
+                    elif 'RSC-005' in line and 'Duplicate' in line:
+                        errors.append(line)  # Duplicate IDs are a problem
+                    elif 'OPF-' in line or 'PKG-' in line or 'NCX-' in line:
+                        errors.append(line)
+
+        return errors
+
+    def test_epub_passes_epubcheck(
+        self, sample_paper: Paper, epubcheck_jar: Path | None
+    ) -> None:
+        """Test that generated EPUB passes EPUBCheck validation."""
+        if epubcheck_jar is None:
+            pytest.skip("EPUBCheck not installed (set EPUBCHECK_JAR env var)")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "test.epub"
+            result = convert_to_epub(sample_paper, output_path, download_images=False)
+
+            errors = self._run_epubcheck(epubcheck_jar, result)
+            assert not errors, f"EPUBCheck errors:\n" + "\n".join(errors)
+
+
+class TestRealPaperIntegration:
+    """Integration tests with real arXiv papers (requires network)."""
+
+    @pytest.fixture
+    def epubcheck_jar(self) -> Path | None:
+        """Get path to epubcheck JAR, or None if not available."""
+        import os
+        import shutil
+
+        jar_path = os.environ.get("EPUBCHECK_JAR")
+        if jar_path and Path(jar_path).exists():
+            return Path(jar_path)
+
+        common_paths = [
+            Path("/tmp/epubcheck-5.1.0/epubcheck.jar"),
+            Path.home() / ".local/share/epubcheck/epubcheck.jar",
+        ]
+        for path in common_paths:
+            if path.exists():
+                return path
+
+        if not shutil.which("java"):
+            return None
+
+        return None
+
+    @pytest.mark.integration
+    def test_real_paper_with_math(self, epubcheck_jar: Path | None) -> None:
+        """Test converting a real arXiv paper with math equations."""
+        if epubcheck_jar is None:
+            pytest.skip("EPUBCheck not installed (set EPUBCHECK_JAR env var)")
+
+        import subprocess
+        from arxiv_to_ereader import fetch_paper, parse_paper
+
+        # Use a paper known to have math (Mamba paper)
+        paper_id = "2312.00752"
+
+        try:
+            fetched_id, html = fetch_paper(paper_id)
+        except Exception as e:
+            pytest.skip(f"Could not fetch paper (network issue?): {e}")
+
+        paper = parse_paper(html, fetched_id)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_path = Path(tmpdir) / "test.epub"
+            # Test with math rendering enabled (default)
+            result = convert_to_epub(
+                paper, output_path, download_images=False, render_math=True
+            )
+
+            assert result.exists()
+            assert result.stat().st_size > 0
+
+            # Run epubcheck - focus on structural errors
+            proc = subprocess.run(
+                ["java", "-jar", str(epubcheck_jar), str(result)],
+                capture_output=True,
+                text=True,
+            )
+
+            # Check for critical structural errors that would cause Kindle E999
+            output = proc.stdout + proc.stderr
+
+            # These specific errors would cause Kindle rejection:
+            critical_errors = []
+            for line in output.split("\n"):
+                if "ERROR" in line:
+                    # Duplicate IDs in OPF
+                    if "Duplicate" in line and ".opf" in line:
+                        critical_errors.append(line)
+                    # MathML not stripped (should never happen with scrubbing)
+                    if 'element "math"' in line:
+                        critical_errors.append(line)
+                    # Empty ol tags
+                    if 'element "ol" incomplete' in line:
+                        critical_errors.append(line)
+
+            assert not critical_errors, (
+                f"Critical Kindle compatibility errors:\n" + "\n".join(critical_errors)
+            )
+
+            # Verify MathML was stripped from content
+            with zipfile.ZipFile(result, "r") as zf:
+                for name in zf.namelist():
+                    if name.endswith(".xhtml"):
+                        content = zf.read(name).decode("utf-8")
+                        assert "<math" not in content or "math-image" in content, (
+                            f"Unprocessed MathML found in {name}"
+                        )

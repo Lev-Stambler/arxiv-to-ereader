@@ -69,6 +69,9 @@ select = ["E", "F", "I", "W", "UP"]
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "--cov=arxiv_to_ereader --cov-report=term-missing --cov-report=html --cov-fail-under=80"
+markers = [
+    "integration: marks tests as integration tests (require network access)",
+]
 
 [tool.coverage.run]
 source = ["src/arxiv_to_ereader"]

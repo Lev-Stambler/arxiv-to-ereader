@@ -40,6 +40,8 @@ def _scrub_epub_for_kindle(epub_path: Path) -> None:
     2. Fix NCX links pointing to body IDs (Amazon rejects these)
     3. Ensure dc:language metadata exists
     4. Remove <img> tags without src attributes
+    5. Strip MathML elements (Kindle doesn't support them; keeps alttext as fallback)
+    6. Remove empty <ol/> tags (invalid in EPUB nav)
 
     Args:
         epub_path: Path to the EPUB file to scrub (modified in place)
@@ -87,9 +89,10 @@ def _scrub_epub_for_kindle(epub_path: Path) -> None:
                     text = cleaned
                     modified = True
 
-                # Fix 4: Remove <img> tags without src (for XHTML files)
+                # Process XHTML files for Kindle compatibility
                 if name.endswith((".xhtml", ".html")):
                     soup = BeautifulSoup(text, "lxml-xml")
+                    soup_modified = False
 
                     # Find body ID for NCX fix
                     body = soup.find("body")
@@ -98,15 +101,30 @@ def _scrub_epub_for_kindle(epub_path: Path) -> None:
                         filename = name.split("/")[-1]
                         body_ids[filename] = body["id"]
 
-                    # Remove img tags without src
-                    img_removed = False
+                    # Fix 4: Remove img tags without src
                     for img in soup.find_all("img"):
                         if not img.get("src"):
                             img.decompose()
-                            img_removed = True
+                            soup_modified = True
 
-                    if img_removed:
-                        # Only re-serialize if we actually removed something
+                    # Fix 5: Strip MathML (Kindle doesn't support it)
+                    # Replace with alttext or empty string as fallback
+                    for math in soup.find_all("math"):
+                        alt = math.get("alttext", "")
+                        if alt:
+                            math.replace_with(f" {alt} ")
+                        else:
+                            math.decompose()
+                        soup_modified = True
+
+                    # Fix 6: Remove empty <ol/> tags (invalid in EPUB nav)
+                    for ol in soup.find_all("ol"):
+                        if not ol.find("li"):
+                            ol.decompose()
+                            soup_modified = True
+
+                    if soup_modified:
+                        # Only re-serialize if we actually modified something
                         text = str(soup)
                         modified = True
 
@@ -480,8 +498,8 @@ def convert_to_epub(
     book.set_title(paper.title)
     book.set_language("en")
 
-    for author in paper.authors:
-        book.add_author(author)
+    for i, author in enumerate(paper.authors):
+        book.add_author(author, uid=f"creator_{i}")
 
     if paper.date:
         book.add_metadata("DC", "date", paper.date)
