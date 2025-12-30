@@ -116,14 +116,15 @@ class TestCLIBatchConversion:
             )
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            # Use --use-id to ensure unique filenames since sample HTML has same title
             result = runner.invoke(
-                app, [*papers, "-o", tmpdir, "--no-images"]
+                app, [*papers, "-o", tmpdir, "--no-images", "--use-id"]
             )
 
             assert result.exit_code == 0
             assert "2 succeeded" in result.stdout
 
-            # Check files were created
+            # Check files were created with arXiv IDs
             epub_files = list(Path(tmpdir).glob("*.epub"))
             assert len(epub_files) == 2
 

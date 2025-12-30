@@ -271,6 +271,9 @@ def _convert_math_to_images(
                 wrapper.append(img_tag)
                 math_elem.replace_with(wrapper)
             else:
+                # For inline math, add vertical-align style for baseline alignment
+                if math_img.depth_em != 0:
+                    img_tag["style"] = f"vertical-align: {math_img.depth_em:.2f}em;"
                 math_elem.replace_with(img_tag)
 
     # Return the modified HTML

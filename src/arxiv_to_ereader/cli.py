@@ -1,6 +1,7 @@
 """Command-line interface for arxiv-to-ereader."""
 
 import asyncio
+import re
 from pathlib import Path
 from typing import Annotated
 
@@ -18,6 +19,37 @@ from arxiv_to_ereader.fetcher import (
     normalize_arxiv_id,
 )
 from arxiv_to_ereader.parser import parse_paper
+
+
+def sanitize_filename(title: str, max_length: int = 80) -> str:
+    """Convert a paper title to a safe filename.
+
+    Args:
+        title: The paper title
+        max_length: Maximum length for the filename (default 80)
+
+    Returns:
+        A sanitized filename-safe string (Linux/macOS/Windows compatible)
+    """
+    # Replace colons with dashes
+    filename = title.replace(":", "-")
+    # Replace slashes and backslashes with dashes
+    filename = filename.replace("/", "-").replace("\\", "-")
+    # Remove or replace other unsafe characters (Windows/Linux problematic)
+    filename = re.sub(r'[<>"|?*\x00-\x1f]', "", filename)
+    # Replace spaces and other whitespace with underscores
+    filename = re.sub(r"[\s]+", "_", filename)
+    # Replace multiple dashes/underscores with single
+    filename = re.sub(r"[-]+", "-", filename)
+    filename = re.sub(r"[_]+", "_", filename)
+    # Remove combinations like _- or -_
+    filename = re.sub(r"[-_]{2,}", "_", filename)
+    # Strip leading/trailing underscores and dashes
+    filename = filename.strip("_-")
+    # Truncate if too long (leave room for extension)
+    if len(filename) > max_length:
+        filename = filename[:max_length].rsplit("_", 1)[0].strip("_-")
+    return filename or "paper"
 
 app = typer.Typer(
     name="arxiv-to-ereader",
@@ -84,9 +116,16 @@ def convert(
         int,
         typer.Option(
             "--math-dpi",
-            help="DPI resolution for rendered math images (default 150)",
+            help="DPI resolution for rendered math images (default 200)",
         ),
-    ] = 150,
+    ] = 200,
+    use_id: Annotated[
+        bool,
+        typer.Option(
+            "--use-id",
+            help="Use arXiv ID for filename instead of paper title",
+        ),
+    ] = False,
     version: Annotated[
         bool | None,
         typer.Option(
@@ -127,9 +166,9 @@ def convert(
 
     # Process single paper or batch
     if len(papers) == 1:
-        _convert_single(papers[0], output, style, not no_images, output_format, not no_math_images, math_dpi)
+        _convert_single(papers[0], output, style, not no_images, output_format, not no_math_images, math_dpi, use_id)
     else:
-        _convert_batch(papers, output, style, not no_images, output_format, not no_math_images, math_dpi)
+        _convert_batch(papers, output, style, not no_images, output_format, not no_math_images, math_dpi, use_id)
 
 
 def _convert_single(
@@ -140,6 +179,7 @@ def _convert_single(
     output_format: OutputFormat,
     render_math: bool,
     math_dpi: int,
+    use_id: bool,
 ) -> None:
     """Convert a single paper."""
     with Progress(
@@ -176,11 +216,16 @@ def _convert_single(
         format_name = output_format.value.upper()
         progress.update(task, description=f"Converting {paper_id} to {format_name}...")
 
-        # Determine output path
-        if output_dir:
-            output_path = output_dir / f"{paper_id.replace('/', '_')}.{output_format.value}"
+        # Determine output path - use paper title by default, arXiv ID if --use-id
+        if use_id:
+            filename = paper_id.replace('/', '_')
         else:
-            output_path = None
+            filename = sanitize_filename(paper.title)
+
+        if output_dir:
+            output_path = output_dir / f"{filename}.{output_format.value}"
+        else:
+            output_path = Path(f"{filename}.{output_format.value}")
 
         # Convert to ebook
         ebook_path = convert_to_epub(
@@ -208,6 +253,7 @@ def _convert_batch(
     output_format: OutputFormat,
     render_math: bool,
     math_dpi: int,
+    use_id: bool,
 ) -> None:
     """Convert multiple papers."""
     format_name = output_format.value.upper()
@@ -240,11 +286,16 @@ def _convert_batch(
             # Parse HTML
             paper = parse_paper(html, paper_id)
 
-            # Determine output path
-            if output_dir:
-                output_path = output_dir / f"{paper_id.replace('/', '_')}.{output_format.value}"
+            # Determine output path - use paper title by default, arXiv ID if --use-id
+            if use_id:
+                filename = paper_id.replace('/', '_')
             else:
-                output_path = None
+                filename = sanitize_filename(paper.title)
+
+            if output_dir:
+                output_path = output_dir / f"{filename}.{output_format.value}"
+            else:
+                output_path = Path(f"{filename}.{output_format.value}")
 
             # Convert to ebook
             ebook_path = convert_to_epub(

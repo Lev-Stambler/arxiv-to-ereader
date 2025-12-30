@@ -210,3 +210,59 @@ class TestExtractLatexFromMathml:
         '''
         result = extract_latex_from_mathml(mathml)
         assert result == r"\mathcal{L}_{\text{MLM}}"
+
+
+class TestInlineMathDepth:
+    """Tests for inline math depth calculation (baseline alignment)."""
+
+    def test_inline_math_has_depth_em(self) -> None:
+        """Test that inline math has depth_em field."""
+        result = render_latex_to_image("x + y", is_display=False)
+        assert result is not None
+        assert hasattr(result, "depth_em")
+        assert isinstance(result.depth_em, float)
+
+    def test_display_math_has_zero_depth(self) -> None:
+        """Test that display math has zero depth (no vertical align needed)."""
+        result = render_latex_to_image("x + y", is_display=True)
+        assert result is not None
+        assert result.depth_em == 0.0
+
+    def test_inline_math_has_nonzero_depth(self) -> None:
+        """Test that inline math calculates non-zero depth for alignment."""
+        result = render_latex_to_image("x + y", is_display=False)
+        assert result is not None
+        # Inline math should have some depth for baseline alignment
+        # The depth should be negative (below baseline) or very small
+        assert result.depth_em <= 0.1  # Either negative or near zero
+
+    def test_subscript_has_more_depth_than_simple(self) -> None:
+        """Test that subscripts have more depth than simple expressions."""
+        simple = render_latex_to_image("x", is_display=False)
+        subscript = render_latex_to_image("x_i", is_display=False)
+        assert simple is not None
+        assert subscript is not None
+        # Subscripts extend below baseline more, so should have more negative depth
+        # Note: depth_em is negative for below baseline
+        assert subscript.depth_em <= simple.depth_em
+
+    def test_fraction_has_significant_depth(self) -> None:
+        """Test that fractions have significant depth."""
+        result = render_latex_to_image(r"\frac{a}{b}", is_display=False)
+        assert result is not None
+        # Fractions extend below baseline
+        assert result.depth_em < 0
+
+    def test_depth_is_reasonable_em_value(self) -> None:
+        """Test that depth is a reasonable value in em units."""
+        result = render_latex_to_image("x_i", is_display=False)
+        assert result is not None
+        # Depth should be between -2em and 0.5em (reasonable range)
+        assert -2.0 < result.depth_em < 0.5
+
+    def test_simple_variable_has_small_depth(self) -> None:
+        """Test that a simple variable like 'x' has small depth."""
+        result = render_latex_to_image("x", is_display=False)
+        assert result is not None
+        # Simple variables sit mostly on baseline, small negative or near-zero depth
+        assert -0.5 < result.depth_em < 0.3

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.mathtext import math_to_image
+from matplotlib.mathtext import MathTextParser, math_to_image
 
 # Use non-interactive backend for headless rendering
 matplotlib.use("Agg")
@@ -21,6 +21,7 @@ class MathImage:
     image_data: bytes
     image_type: str = "image/png"
     is_display: bool = False  # True for block/display equations, False for inline
+    depth_em: float = 0.0  # Vertical offset in em (negative = below baseline)
 
     @property
     def filename(self) -> str:
@@ -125,6 +126,8 @@ def render_latex_to_image(
     if not cleaned.startswith("$"):
         cleaned = f"${cleaned}$"
 
+    depth_em = 0.0  # Default depth
+
     try:
         # Create figure and render math
         fig, ax = plt.subplots(figsize=(0.01, 0.01))
@@ -150,6 +153,7 @@ def render_latex_to_image(
                     ha="center", va="center",
                     transform=ax.transAxes,
                 )
+                cleaned = f"${simple}$"  # Update for depth calculation
             else:
                 plt.close(fig)
                 return None
@@ -160,6 +164,25 @@ def render_latex_to_image(
         # Get tight bounding box around text
         bbox = text.get_window_extent(renderer=fig.canvas.get_renderer())
         bbox = bbox.expanded(1.1, 1.2)  # Add padding
+
+        # Calculate depth for inline math using MathTextParser
+        # This gives us the offset from baseline to bottom of image
+        if not is_display:
+            try:
+                parser = MathTextParser("bitmap")
+                # Parse returns a tuple with (ox, oy, width, height, depth, image)
+                # For "bitmap" mode, it returns (offset_x, offset_y, width, height, depth, image)
+                _, _, _, height, depth, _ = parser.parse(cleaned, dpi=dpi)
+
+                # depth is pixels below baseline, height is total height
+                # Convert to em units (12pt font at this DPI)
+                font_size_px = 12 * (dpi / 72)
+                if height > 0:
+                    # depth_em should be negative for CSS vertical-align
+                    depth_em = -depth / font_size_px
+            except Exception:
+                # If depth calculation fails, use a reasonable default
+                depth_em = -0.2 if not is_display else 0.0
 
         # Save with tight bbox and white background
         buf = io.BytesIO()
@@ -180,6 +203,7 @@ def render_latex_to_image(
             image_data=image_data,
             image_type="image/png",
             is_display=is_display,
+            depth_em=depth_em,
         )
 
     except Exception:

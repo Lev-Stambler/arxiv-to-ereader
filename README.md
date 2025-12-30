@@ -2,6 +2,8 @@
 
 Convert arXiv HTML papers to EPUB and Kindle formats (MOBI, AZW3) for easy reading on e-readers.
 
+![Demo](demo.gif)
+
 ## Quick Start
 
 ```bash
@@ -24,7 +26,7 @@ uv run streamlit run src/arxiv_to_ereader/web.py
 ## Features
 
 - **Multiple Formats**: Output to EPUB, MOBI, or AZW3 (native Kindle format)
-- **Math Rendering**: LaTeX equations converted to images for Kindle compatibility
+- **Math Rendering**: LaTeX equations converted to images with proper baseline alignment for Kindle compatibility
 - **Simple CLI**: Convert papers with a single command
 - **Batch Processing**: Convert multiple papers at once
 - **Web Interface**: Optional Streamlit UI for non-technical users
@@ -88,6 +90,9 @@ uv run arxiv-to-ereader 2402.08954 --no-math-images
 
 # Increase math image resolution for larger screens
 uv run arxiv-to-ereader 2402.08954 --math-dpi 200
+
+# Use arXiv ID for filename instead of paper title
+uv run arxiv-to-ereader 2402.08954 --use-id
 ```
 
 ### Output Formats
@@ -186,18 +191,20 @@ uv run ruff check src tests
 
 1. **Fetch**: Downloads the HTML version of the paper from arXiv
 2. **Parse**: Extracts title, authors, abstract, sections, figures, and references
-3. **Render Math**: Converts LaTeX equations to PNG images using matplotlib (for Kindle compatibility)
+3. **Render Math**: Converts LaTeX equations to PNG images using matplotlib with proper baseline alignment for inline math
 4. **Convert**: Creates an EPUB file using ebooklib with responsive CSS styling
 5. **Transform** (optional): Converts EPUB to Kindle formats using Calibre
 
 The generated ebook includes:
 - Cover page with title, authors, and paper ID
 - Abstract
-- All paper sections with math rendered as images
+- All paper sections with math equations rendered as images
 - Embedded figures (optional)
 - Footnotes
 - References
 - Responsive CSS optimized for e-reader devices
+
+Output files are named after the paper title by default (use `--use-id` for arXiv ID-based filenames).
 
 ## License
 
@@ -210,6 +217,17 @@ MIT License - see [LICENSE](LICENSE) for details.
 - [matplotlib](https://matplotlib.org) for LaTeX equation rendering
 - [Calibre](https://calibre-ebook.com) for Kindle format conversion
 - [LaTeXML](https://dlmf.nist.gov/LaTeXML/) which powers arXiv's HTML conversion
+
+## Recording the Demo
+
+The demo GIF is recorded using [VHS](https://github.com/charmbracelet/vhs):
+
+```bash
+# Install VHS (https://github.com/charmbracelet/vhs#installation)
+# Then record the demo:
+vhs demo-quick.tape    # Quick demo (no network)
+vhs demo.tape          # Full demo (requires network)
+```
 
 ## Disclaimer
 
