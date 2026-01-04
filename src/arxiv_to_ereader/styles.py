@@ -331,6 +331,85 @@ blockquote {{
     margin: 12pt 0;
 }}
 
+/* LaTeXML span-based tables */
+.ltx_tabular {{
+    display: table;
+    border-collapse: collapse;
+    margin: 8pt auto;
+    font-size: {preset.base_font_pt * 0.85}pt;
+}}
+
+.ltx_tr {{
+    display: table-row;
+}}
+
+.ltx_td, .ltx_th {{
+    display: table-cell;
+    padding: 3pt 5pt;
+    text-align: left;
+    vertical-align: middle;
+}}
+
+/* LaTeXML table borders */
+.ltx_border_t {{ border-top: 0.5pt solid #444; }}
+.ltx_border_b {{ border-bottom: 0.5pt solid #444; }}
+.ltx_border_l {{ border-left: 0.5pt solid #444; }}
+.ltx_border_r {{ border-right: 0.5pt solid #444; }}
+.ltx_border_tt {{ border-top: 1pt solid #000; }}
+.ltx_border_bb {{ border-bottom: 1pt solid #000; }}
+
+/* LaTeXML table figure */
+.ltx_table {{
+    margin: 12pt auto;
+    page-break-inside: avoid;
+}}
+
+/* Transform containers - reset transforms for e-reader readability */
+.ltx_transformed_outer {{
+    display: block;
+    margin: 8pt auto;
+    max-width: 100%;
+    overflow-x: auto;
+    /* Reset fixed dimensions from LaTeXML */
+    width: auto !important;
+    height: auto !important;
+    vertical-align: baseline !important;
+}}
+
+.ltx_transformed_inner {{
+    display: block;
+    /* Reset scaling transforms - we want full-size content on e-readers */
+    transform: none !important;
+}}
+
+/* Tables should be allowed to overflow with scrolling if needed */
+.ltx_table .ltx_transformed_outer {{
+    overflow-x: auto;
+}}
+
+/* SVG figures (algorithms, diagrams) */
+svg.ltx_picture {{
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 10pt auto;
+}}
+
+/* Foreign objects in SVG need proper sizing */
+svg foreignobject {{
+    overflow: visible;
+}}
+
+.ltx_foreignobject_container {{
+    display: block;
+}}
+
+/* Algorithm boxes */
+.ltx_figure svg {{
+    max-width: 100%;
+    height: auto;
+}}
+
 /* Print-specific */
 @media print {{
     body {{
