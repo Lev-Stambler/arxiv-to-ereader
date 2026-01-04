@@ -16,16 +16,16 @@ Set TypingSpeed 40ms
 Sleep 500ms
 
 # Show the tool name
-Type "# arxiv-to-ereader"
+Type "# arxiv-ereader"
 Enter
 Sleep 800ms
 
-Type "# Convert arXiv papers to EPUB/Kindle formats"
+Type "# Convert arXiv papers to PDF for e-readers"
 Enter
 Sleep 1s
 
 # Show help
-Type "uv run arxiv-to-ereader --help"
+Type "uv run arxiv-ereader --help"
 Enter
 Sleep 4s
 
@@ -36,14 +36,14 @@ Type "# Example usage:"
 Enter
 Sleep 500ms
 
-Type "# uv run arxiv-to-ereader 2402.08954"
+Type "# uv run arxiv-ereader 2402.08954"
 Enter
 Sleep 800ms
 
-Type "# uv run arxiv-to-ereader 2402.08954 --format azw3"
+Type "# uv run arxiv-ereader 2402.08954 --screen kindle-scribe"
 Enter
 Sleep 800ms
 
-Type "# uv run arxiv-to-ereader 2402.08954 2401.12345 -o ~/kindle/"
+Type "# uv run arxiv-ereader 2402.08954 2401.12345 -o ~/papers/"
 Enter
 Sleep 1.5s

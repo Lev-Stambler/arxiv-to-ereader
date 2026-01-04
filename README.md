@@ -28,6 +28,8 @@ uv run streamlit run src/arxiv_to_ereader/web.py
 
 - **Screen Presets**: Optimized page sizes for popular e-readers (Kindle, Kobo, reMarkable)
 - **Native Math Rendering**: MathML equations rendered by browser engine (same as viewing on arXiv)
+- **Table Support**: Handles LaTeXML's span-based tables with proper CSS styling
+- **Algorithm Blocks**: Converts algorithm pseudocode from SVG to readable HTML blocks
 - **Simple CLI**: Convert papers with a single command
 - **Batch Processing**: Convert multiple papers at once
 - **Web Interface**: Optional Streamlit UI
@@ -158,6 +160,8 @@ uv run ruff check src tests
 
 1. **Fetch**: Downloads the HTML version of the paper from arXiv
 2. **Parse**: Extracts title, authors, abstract, sections, figures, and references
+   - Converts LaTeXML span-based tables (`ltx_tabular`) to properly styled tables
+   - Extracts algorithm pseudocode from SVG foreignobjects and renders as HTML blocks
 3. **Generate PDF**: Uses Playwright (headless Chromium) to render HTML with native MathML support and export to PDF with custom page dimensions
 
 ## Limitations

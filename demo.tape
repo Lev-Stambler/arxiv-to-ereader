@@ -17,11 +17,11 @@ Set TypingSpeed 50ms
 Sleep 500ms
 
 # Show the help
-Type "# Convert arXiv papers to EPUB for your Kindle"
+Type "# Convert arXiv papers to PDF for your e-reader"
 Enter
 Sleep 1s
 
-Type "uv run arxiv-to-ereader --help"
+Type "uv run arxiv-ereader --help"
 Enter
 Sleep 3s
 
@@ -30,34 +30,34 @@ Type "clear"
 Enter
 Sleep 500ms
 
-Type "# Convert a single paper to EPUB"
+Type "# Convert a single paper to PDF"
 Enter
 Sleep 500ms
 
-Type "uv run arxiv-to-ereader 2402.08954 --no-images"
+Type "uv run arxiv-ereader 2402.08954 --no-images"
 Enter
 Sleep 5s
 
 # Show the created file
-Type "ls -la *.epub"
+Type "ls -la *.pdf"
 Enter
 Sleep 2s
 
-# Clear and show format options
+# Clear and show screen preset options
 Type "clear"
 Enter
 Sleep 500ms
 
-Type "# Convert to Kindle-native AZW3 format"
+Type "# Convert for Kindle Scribe (larger screen)"
 Enter
 Sleep 500ms
 
-Type "uv run arxiv-to-ereader 2402.08954 --format azw3 --no-images"
+Type "uv run arxiv-ereader 2402.08954 --screen kindle-scribe --no-images"
 Enter
 Sleep 5s
 
 # Show both files
-Type "ls -la *.epub *.azw3 2>/dev/null || ls -la *.epub"
+Type "ls -la *.pdf"
 Enter
 Sleep 2s
 
