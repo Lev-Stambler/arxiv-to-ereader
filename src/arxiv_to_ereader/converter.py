@@ -132,6 +132,9 @@ def _scrub_epub_for_kindle(epub_path: Path) -> None:
     6. External HTTP(S) links (may cause Send to Kindle rejection)
     7. Anchor tags without href (LaTeXML cross-references break Kindle validation)
     8. Missing citation markers (ltx_missing_citation elements)
+    9. Empty <ol> elements (invalid EPUB structure)
+    10. Data URLs (not allowed in EPUB)
+    11. Broken internal links (fragment identifiers pointing to non-existent IDs)
 
     Based on: https://kindle-epub-fix.netlify.app/
 
@@ -145,6 +148,18 @@ def _scrub_epub_for_kindle(epub_path: Path) -> None:
 
     # Track body IDs for NCX fix
     body_ids: dict[str, str] = {}  # filename -> body_id
+
+    # Collect all IDs from all XHTML files for broken link detection
+    all_ids: dict[str, set[str]] = {}  # filename -> set of IDs
+    for name, content in files_content.items():
+        if name.endswith((".xhtml", ".html")):
+            try:
+                text = content.decode("utf-8")
+                soup = BeautifulSoup(text, "lxml")
+                filename = name.split("/")[-1]
+                all_ids[filename] = {elem["id"] for elem in soup.find_all(attrs={"id": True})}
+            except (UnicodeDecodeError, Exception):
+                pass
 
     for name, content in list(files_content.items()):
         if name == "mimetype":
@@ -213,6 +228,10 @@ def _scrub_epub_for_kindle(epub_path: Path) -> None:
                     for a in soup.find_all("a"):
                         if not a.get("href"):
                             a.name = "span"
+                            # Remove link-specific attributes
+                            for attr in ["download", "target", "rel"]:
+                                if attr in a.attrs:
+                                    del a.attrs[attr]
                             soup_modified = True
 
                     # Fix 8: Clean up missing citation markers
@@ -220,6 +239,69 @@ def _scrub_epub_for_kindle(epub_path: Path) -> None:
                         elem.name = "span"
                         elem["class"] = ["citation-missing"]
                         soup_modified = True
+
+                    # Fix 9: Remove empty <ol> elements (invalid EPUB)
+                    for ol in soup.find_all("ol"):
+                        if not ol.find_all("li"):
+                            ol.decompose()
+                            soup_modified = True
+
+                    # Fix 9b: Convert span to div if it contains block elements
+                    # arXiv HTML sometimes nests divs inside spans, which is invalid
+                    block_elements = {"div", "p", "table", "ul", "ol", "blockquote", "figure", "pre"}
+                    for span in soup.find_all("span"):
+                        has_block_child = any(
+                            child.name in block_elements
+                            for child in span.children
+                            if hasattr(child, "name")
+                        )
+                        if has_block_child:
+                            span.name = "div"
+                            soup_modified = True
+
+                    # Fix 10: Remove data: URLs (not allowed in EPUB)
+                    for elem in soup.find_all(attrs={"href": True}):
+                        if elem["href"].startswith("data:"):
+                            if elem.name == "a":
+                                elem.name = "span"
+                                # Remove link-specific attributes
+                                for attr in ["href", "download", "target", "rel"]:
+                                    if attr in elem.attrs:
+                                        del elem.attrs[attr]
+                            else:
+                                del elem["href"]
+                            soup_modified = True
+                    for elem in soup.find_all(attrs={"src": True}):
+                        if elem["src"].startswith("data:"):
+                            elem.decompose()
+                            soup_modified = True
+
+                    # Fix 11: Remove broken internal links
+                    current_file = name.split("/")[-1]
+                    for a in soup.find_all("a", href=True):
+                        href = a["href"]
+                        broken = False
+                        if href.startswith("#"):
+                            target_id = href[1:]
+                            if current_file in all_ids and target_id not in all_ids.get(current_file, set()):
+                                # Check if ID exists in any file
+                                found = any(target_id in ids for ids in all_ids.values())
+                                if not found:
+                                    broken = True
+                        elif "#" in href and not href.startswith("http"):
+                            # Cross-file link like "file.xhtml#id"
+                            parts = href.split("#", 1)
+                            target_file = parts[0]
+                            target_id = parts[1] if len(parts) > 1 else ""
+                            if target_id and target_id not in all_ids.get(target_file, set()):
+                                broken = True
+
+                        if broken:
+                            a.name = "span"
+                            for attr in ["href", "download", "target", "rel"]:
+                                if attr in a.attrs:
+                                    del a.attrs[attr]
+                            soup_modified = True
 
                     if soup_modified:
                         text = str(soup)
@@ -716,8 +798,8 @@ def convert_to_epub(
         book.add_item(footnotes_chapter)
         chapters.append(footnotes_chapter)
 
-    # Create table of contents
-    book.toc = [(chapter, []) for chapter in chapters]
+    # Create table of contents (flat list, no empty sub-items)
+    book.toc = tuple(chapters)
 
     # Add navigation files (NCX for compatibility, Nav for EPUB 3)
     book.add_item(epub.EpubNcx())
