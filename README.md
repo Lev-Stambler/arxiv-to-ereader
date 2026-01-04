@@ -10,6 +10,9 @@ git clone https://github.com/Lev-Stambler/arxiv-to-ereader.git
 cd arxiv-to-ereader
 uv sync
 
+# Install Playwright browser
+uv run playwright install chromium
+
 # Convert a paper to PDF (default: Kindle Paperwhite)
 uv run arxiv-ereader 2402.08954
 
@@ -24,7 +27,7 @@ uv run streamlit run src/arxiv_to_ereader/web.py
 ## Features
 
 - **Screen Presets**: Optimized page sizes for popular e-readers (Kindle, Kobo, reMarkable)
-- **Math Rendering**: LaTeX equations converted to images with proper baseline alignment
+- **Native Math Rendering**: MathML equations rendered by browser engine (same as viewing on arXiv)
 - **Simple CLI**: Convert papers with a single command
 - **Batch Processing**: Convert multiple papers at once
 - **Web Interface**: Optional Streamlit UI
@@ -36,19 +39,9 @@ uv run streamlit run src/arxiv_to_ereader/web.py
 git clone https://github.com/Lev-Stambler/arxiv-to-ereader.git
 cd arxiv-to-ereader
 uv sync
-```
 
-### System Dependencies
-
-WeasyPrint requires some system libraries. On most systems these are already installed:
-
-```bash
-# Ubuntu/Debian
-sudo apt install libpango-1.0-0 libpangocairo-1.0-0
-
-# macOS (usually no extra deps needed)
-# Fedora
-sudo dnf install pango
+# Install Playwright's Chromium browser
+uv run playwright install chromium
 ```
 
 ## Usage
@@ -82,9 +75,6 @@ uv run arxiv-ereader 2402.08954 -o ~/papers/
 # Skip images for faster/smaller files
 uv run arxiv-ereader 2402.08954 --no-images
 
-# Increase math image resolution
-uv run arxiv-ereader 2402.08954 --math-dpi 300
-
 # Use arXiv ID for filename instead of paper title
 uv run arxiv-ereader 2402.08954 --use-id
 ```
@@ -111,7 +101,7 @@ uv run streamlit run src/arxiv_to_ereader/web.py
 ## Python API
 
 ```python
-from arxiv_ereader import fetch_paper, parse_paper, convert_to_pdf, SCREEN_PRESETS
+from arxiv_to_ereader import fetch_paper, parse_paper, convert_to_pdf, SCREEN_PRESETS
 
 # Fetch and convert a paper
 paper_id, html = fetch_paper("2402.08954")
@@ -154,6 +144,9 @@ cd arxiv-to-ereader
 # Install with dev dependencies
 uv sync --all-extras
 
+# Install Playwright browser
+uv run playwright install chromium
+
 # Run tests
 uv run pytest
 
@@ -165,14 +158,12 @@ uv run ruff check src tests
 
 1. **Fetch**: Downloads the HTML version of the paper from arXiv
 2. **Parse**: Extracts title, authors, abstract, sections, figures, and references
-3. **Render Math**: Converts LaTeX equations to PNG images using matplotlib
-4. **Generate PDF**: Creates a PDF using WeasyPrint with CSS optimized for the target screen size
+3. **Generate PDF**: Uses Playwright (headless Chromium) to render HTML with native MathML support and export to PDF with custom page dimensions
 
 ## Limitations
 
 - Only works with arXiv papers that have HTML versions
 - Papers submitted before December 2023 may not have HTML available
-- Very complex LaTeX equations may fall back to simplified rendering
 
 ## License
 
@@ -181,6 +172,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Credits
 
 - [arXiv](https://arxiv.org) for providing HTML versions of papers
-- [WeasyPrint](https://weasyprint.org/) for PDF generation
-- [matplotlib](https://matplotlib.org) for LaTeX equation rendering
+- [Playwright](https://playwright.dev/) for browser-based PDF generation
 - [LaTeXML](https://dlmf.nist.gov/LaTeXML/) which powers arXiv's HTML conversion
