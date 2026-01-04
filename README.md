@@ -2,6 +2,8 @@
 
 Convert arXiv HTML papers to PDF optimized for e-readers (Kindle, Kobo, reMarkable).
 
+![Demo](demo.gif)
+
 ## Quick Start
 
 ```bash
