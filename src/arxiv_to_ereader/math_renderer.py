@@ -41,11 +41,21 @@ def _clean_latex(latex: str) -> str:
 
     # Common substitutions for unsupported commands
     substitutions = [
+        # Bold math variants - \bm is very common in arXiv papers
+        (r"\\bm\{([^}]*)\}", r"\\boldsymbol{\1}"),
+        (r"\\mathbold\{([^}]*)\}", r"\\boldsymbol{\1}"),
+        # Display style commands - strip since we render as images
+        (r"\\displaystyle\s*", ""),
+        (r"\\textstyle\s*", ""),
+        (r"\\scriptstyle\s*", ""),
+        (r"\\scriptscriptstyle\s*", ""),
         # Text commands - convert to regular text
         (r"\\text\{([^}]*)\}", r"\\mathrm{\1}"),
         (r"\\textbf\{([^}]*)\}", r"\\mathbf{\1}"),
         (r"\\textit\{([^}]*)\}", r"\\mathit{\1}"),
         (r"\\textrm\{([^}]*)\}", r"\\mathrm{\1}"),
+        (r"\\texttt\{([^}]*)\}", r"\\mathrm{\1}"),
+        (r"\\textsf\{([^}]*)\}", r"\\mathrm{\1}"),
         # Spacing commands
         (r"\\,", " "),
         (r"\\;", " "),
@@ -53,6 +63,8 @@ def _clean_latex(latex: str) -> str:
         (r"\\!", ""),
         (r"\\quad", "  "),
         (r"\\qquad", "    "),
+        (r"\\hspace\{[^}]*\}", " "),
+        (r"\\vspace\{[^}]*\}", ""),
         # Common unsupported commands -> supported equivalents
         (r"\\left\[", "["),
         (r"\\right\]", "]"),
@@ -67,23 +79,65 @@ def _clean_latex(latex: str) -> str:
         (r"\\left\.", ""),
         (r"\\right\.", ""),
         # Operators
-        (r"\\operatorname\{([^}]*)\}", r"\\mathrm{\1}"),
+        (r"\\operatorname\*?\{([^}]*)\}", r"\\mathrm{\1}"),
         (r"\\mathop\{([^}]*)\}", r"\\mathrm{\1}"),
+        (r"\\DeclareMathOperator\{[^}]*\}\{([^}]*)\}", r"\\mathrm{\1}"),
         # Remove unsupported sizing
-        (r"\\big", ""),
-        (r"\\Big", ""),
-        (r"\\bigg", ""),
-        (r"\\Bigg", ""),
+        (r"\\big([lrm]?)", ""),
+        (r"\\Big([lrm]?)", ""),
+        (r"\\bigg([lrm]?)", ""),
+        (r"\\Bigg([lrm]?)", ""),
         # Handle \setminus (set minus) - not in mathtext
         (r"\\setminus", r"\\backslash"),
         # Handle \mid (conditional probability separator)
         (r"\\mid", "|"),
+        # Handle common symbols not in mathtext
+        (r"\\triangleq", "="),
+        (r"\\coloneqq", ":="),
+        (r"\\eqqcolon", "=:"),
+        (r"\\vcentcolon", ":"),
+        (r"\\mathbb\{([^}]*)\}", r"\\mathbf{\1}"),  # Fallback for blackboard bold
+        (r"\\mathcal\{([^}]*)\}", r"\\mathit{\1}"),  # Fallback for calligraphic
+        (r"\\mathscr\{([^}]*)\}", r"\\mathit{\1}"),  # Fallback for script
+        (r"\\mathfrak\{([^}]*)\}", r"\\mathbf{\1}"),  # Fallback for fraktur
+        # Remove unsupported environments markers
+        (r"\\begin\{[^}]*\}", ""),
+        (r"\\end\{[^}]*\}", ""),
+        # Common accents fallback
+        (r"\\tilde\{([^}]*)\}", r"\1"),
+        (r"\\hat\{([^}]*)\}", r"\1"),
+        (r"\\bar\{([^}]*)\}", r"\1"),
+        (r"\\vec\{([^}]*)\}", r"\1"),
+        (r"\\dot\{([^}]*)\}", r"\1"),
+        (r"\\ddot\{([^}]*)\}", r"\1"),
+        (r"\\widehat\{([^}]*)\}", r"\1"),
+        (r"\\widetilde\{([^}]*)\}", r"\1"),
         # Remove intent attribute artifacts if present
         (r":literal", ""),
+        # Remove color commands (RGB and named colors)
+        (r"\\color\[[^\]]*\]\{[^}]*\}", ""),  # \color[rgb]{...}
+        (r"\\color\{[^}]*\}", ""),  # \color{...}
+        (r"\\textcolor\[[^\]]*\]\{[^}]*\}\{([^}]*)\}", r"\1"),  # \textcolor[rgb]{...}{text}
+        (r"\\textcolor\{[^}]*\}\{([^}]*)\}", r"\1"),  # \textcolor{...}{text}
+        # Arrow symbols - use unicode arrows as fallback
+        (r"\\leftarrow", r"\\leftarrow"),  # Keep if supported
+        (r"\\rightarrow", r"\\rightarrow"),  # Keep if supported
+        (r"\\gets", r"\\leftarrow"),
+        (r"\\to", r"\\rightarrow"),
+        # Monospace/typewriter and sans-serif - not fully supported in mathtext
+        (r"\\mathtt\{([^}]*)\}", r"\\mathrm{\1}"),
+        (r"\\mathsf\{([^}]*)\}", r"\\mathrm{\1}"),
+        (r"\\textsf\{([^}]*)\}", r"\\mathrm{\1}"),
     ]
 
     for pattern, replacement in substitutions:
         latex = re.sub(pattern, replacement, latex)
+
+    # Handle nested command issues:
+    # \boldsymbol{\overline{X}} -> \overline{X} (boldsymbol can't nest other commands)
+    # Need to handle this after other substitutions
+    nested_bold_pattern = r"\\boldsymbol\{(\\[a-zA-Z]+\{[^}]*\})\}"
+    latex = re.sub(nested_bold_pattern, r"\1", latex)
 
     return latex
 

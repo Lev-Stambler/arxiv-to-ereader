@@ -166,6 +166,9 @@ def _build_html_document(
         refs_content = paper.references_html
         for old_url, new_src in image_map.items():
             refs_content = refs_content.replace(f'src="{old_url}"', f'src="{new_src}"')
+        # Convert math in references
+        if render_math:
+            refs_content, math_images = _convert_math_to_images(refs_content, math_images, dpi=math_dpi)
         references_html = f"""
         <section class="references">
             <h2>References</h2>
@@ -175,10 +178,16 @@ def _build_html_document(
 
     footnotes_html = ""
     if paper.footnotes:
-        footnotes_list = "\n".join(
-            f'<li id="{fn.id}">{fn.content} <a href="#fnref-{fn.index}" class="footnote-back">^</a></li>'
-            for fn in paper.footnotes
-        )
+        footnotes_items = []
+        for fn in paper.footnotes:
+            fn_content = fn.content
+            # Convert math in footnotes
+            if render_math:
+                fn_content, math_images = _convert_math_to_images(fn_content, math_images, dpi=math_dpi)
+            footnotes_items.append(
+                f'<li id="{fn.id}">{fn_content} <a href="#fnref-{fn.index}" class="footnote-back">^</a></li>'
+            )
+        footnotes_list = "\n".join(footnotes_items)
         footnotes_html = f"""
         <section class="footnotes-section">
             <h2>Notes</h2>
